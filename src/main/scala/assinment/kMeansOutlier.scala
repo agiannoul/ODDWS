@@ -70,35 +70,14 @@ object kMeansOutlier {
 
 
 
-
     // Clustering the data using KMeans
     val numClusters = kclusters
     val kmeans=new KMeans().setK(numClusters).setSeed(1L)
     val model=kmeans.fit(scaledData)
 
     val predictions=model.transform(scaledData)
-    val evaluator = new ClusteringEvaluator()
-    /*
-
-    /**
-     * @param a array of double values
-     * @param k
-     * @return k-th min value of the array
-     */
-    def bubbleSort(a:Array[Double],k:Int):Double= {
-      for(i<- 0 to k-1){
-        for(j <- a.length-1 to i+1 by -1){
-          if(a(j)<a(j-1)){
-            val temp=a(j-1)
-            a(j-1)=a(j)
-            a(j)=temp
-          }
-        }
-      }
-      a(k-1)
-    }
-
-     */
+    val duration1 = (System.nanoTime - t1) / 1e9d
+    print(s"Time kmean :   $duration1 \n")
 
 
     /**
@@ -112,101 +91,24 @@ object kMeansOutlier {
     def CalculateThreshodl(cluster: DataFrame,center :Vector): Double= {
       val clusterrdd=cluster.rdd
       val distances=clusterrdd.map({case(x) =>Vectors.sqdist(x.apply(0).asInstanceOf[Vector],center)})
-      distances.sum()/distances.count()+distances.stdev()*factor
+      distances.mean()+distances.stdev()*factor
     }
-
-
-
-    /*
-    /**
-     * Takes a sample of points(Vectors) from the cluster.
-     * For this sample computes the distances from its k-Nearest Neighbor.
-     * Finds the Mean value of  these distances.
-     * @param cluster DataFrame of cluster produced by Kmeanssample (sumples of cluster
-     * @param sample sumple of cluster
-     * @param k the k-th nearest neighboard distance to use.
-     * @return mean distance of the Nearest Neighbor
-     */
-    def findMeannOfMinDistance(cluster: DataFrame,sample :Dataset[Row],k:Int): Double= {
-      // Number of samples ~= 20
-
-      // Convertion to rdd
-      val samplerdd=sample.rdd
-      val clusterrdd=cluster.rdd
-
-      //Finds the distance of the Nearest Neighbor of each sample.
-      val distances=samplerdd.cartesian(clusterrdd) // Produces all pairs between samples and points of cluster (samplei,clusterj)
-        .filter({case(x,y) => x!=y}) // Exclude pairs like (x,x)
-        // Produces pairs like (x,dist) where x is the samplei and dist is the distance between samplei and samplej
-        .map({case(x,y) =>(x, Array(Vectors.sqdist(x.apply(0).asInstanceOf[Vector],y.apply(0).asInstanceOf[Vector])))})
-        // Finds min distance for each sample i , indicating the distance from its Nearest Neighbor
-        .reduceByKey((d1,d2) => d1++d2)
-
-      // (x,dist) -> (dist), hold only distances
-      val distanceOnly=distances.map( {case(x,d) => bubbleSort(d,k)})
-
-      // Exclude the max distance of these distances. The reason that this is done ,is to deal with the
-      // the fact that, there is a possibility of an outlier being part of the sample.
-      // The propability of two or more outliers being part of the sample is extremely low.
-      val  max = distanceOnly.max()
-      val distancesWithoutMax = distanceOnly.filter(x => x!=max)
-      // Find Mean value of these distances.
-      val mean1=distancesWithoutMax.mean()
-      mean1
-    }
-    */
 
     /**
      * We assume that a point is considered as an outlier if its distance from its center is greater than (or equal) th.
-     * @param df DataFrame of specfic Cluster
      * @param v Potential Outlier (data point)
      * @param th Threshold Distance
      * @param center Center of Cluster.
      * @return True if v is an outlier.Otherwise, false.
      */
-    def findOutlier( df: Array[Row] , v: Vector , th : Double,center:Vector): Boolean ={
+    def findOutlier(v: Vector , th : Double,center:Vector): Boolean ={
 
-      //Iterating throw every point of the cluster
-//      var distances: Array[Double]=Array()
-//      for(r <- df){
-//
-//        val vector1 = r.apply(0).asInstanceOf[Vector]
-//        //Calculation of the distance between potential outlier and point of cluster
-//        val distance= Vectors.sqdist(v,vector1)
-//        // Exclude distance of a point from itself
-//        if( distance <= th && distance>0)
-//          return false
-//        distances +:=distance
-//      }
-      // sqdist calculates the distance
       if ( Vectors.sqdist(v,center)>th){
         true
       } else{
         false
       }
     }
-    /*
-    def findOutlierk( df: Array[Row] , v: Vector , th : Double,k:Int): Boolean ={
-
-      //Iterating throw every point of the cluster
-      var distances: Array[Double]=Array()
-      for(r <- df){
-
-        val vector1 = r.apply(0).asInstanceOf[Vector]
-        //Calculation of the distance between potential outlier and point of cluster
-        val distance= Vectors.sqdist(v,vector1)
-        // Exclude distance of a point from itself
-//        if( distance <= th && distance>0)
-//          return false
-        distances +:=distance
-      }
-      if ( bubbleSort(distances,k)>th){
-        true
-      } else{
-        false
-      }
-    }
-    */
     /**
      * Prints the unscaled points considered as outliers(unscaling).
      * Formula: x=xscaled*(max(X)-min(X)) +min(X) , y=yscaled*(max(Y)-min(Y)) +min(Y)
@@ -232,27 +134,17 @@ object kMeansOutlier {
       // clusterr is the cluster with label i
       val clusterr=predictions.filter(predictions.col("prediction").equalTo(i)).select("features")
       val center=model.clusterCenters(i)
-      // Convertion to Array
-      val  cluster = clusterr.collect()
-      val sample=clusterr.sample(true,1D*21/clusterr.count())
-
-
-     // val mean1=findMeannOfMinDistance(clusterr,sample,k) // this is used for the k nn outlier detection, ignore it.
-      //clusterr.foreach(row => if (  findOutlierk(cluster ,row.apply(0).asInstanceOf[Vector],mean1*factor,k)     ) unScale(xscale,yscale,row))
-
 
       //For every point of the cluster check if its an outlier, calling the findOutlier function
       // As a threshold we use the mean value of distances plus the standard deviation of them multiplied by a factor
       val th=CalculateThreshodl(clusterr,center)
-      clusterr.foreach(row => if (  findOutlier(cluster ,row.apply(0).asInstanceOf[Vector],th,center)     ) unScale(xscale,yscale,row))
+      clusterr.foreach(row => if (  findOutlier( row.apply(0).asInstanceOf[Vector],th,center)) unScale(xscale,yscale,row))
     }
 
     //Find outliers for all clusters
     for(  a <- 0 to kclusters-1){
       outlierDetection(predictions,a)
     }
-
-
 
     //Final excecution time in seconds
     val duration = (System.nanoTime - t1) / 1e9d
@@ -261,5 +153,3 @@ object kMeansOutlier {
     sc.stop()
   }
 }
-
-
