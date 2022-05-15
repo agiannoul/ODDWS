@@ -8,6 +8,7 @@ import org.apache.spark.ml.linalg.Vectors
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql._
 import org.apache.spark.ml.evaluation.ClusteringEvaluator
+import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions.udf
 import org.apache.spark.sql.functions.mean
 import org.apache.spark.sql.functions.{max, min}
@@ -141,10 +142,18 @@ object kMeansOutlier {
       clusterr.foreach(row => if (  findOutlier( row.apply(0).asInstanceOf[Vector],th,center)) unScale(xscale,yscale,row))
     }
 
+    //predictions.groupBy("prediction").agg()
     //Find outliers for all clusters
-    for(  a <- 0 to kclusters-1){
-      outlierDetection(predictions,a)
-    }
+    val distance = udf((x: Vector,clusterid : Int) => Vectors.sqdist(x,model.clusterCenters(clusterid)))
+    val predictionsd = predictions.select($"features",$"prediction",distance($"features",$"prediction").as("distance"))
+    val windowSpec = Window.partitionBy("prediction").rowsBetween(Window.unboundedPreceding, Window.unboundedFollowing)
+    import org.apache.spark.sql.functions
+
+    val predictionsdwithmean = predictionsd.withColumn("mean", functions.mean("distance").over(windowSpec))
+    val predictionsdwithstd = predictionsdwithmean.withColumn("std", functions.stddev("distance").over(windowSpec))
+    val outlier = udf((d:Double,m: Double,std : Double) => d> m+factor*std)
+    val finaldf= predictionsdwithstd.select($"features",$"distance",$"mean",$"std",outlier($"distance",$"mean",$"std").as("outlier"))
+    finaldf.filter(finaldf.col("outlier")).select($"features").foreach(row =>unScale(xscale,yscale,row))
 
     //Final excecution time in seconds
     val duration = (System.nanoTime - t1) / 1e9d
