@@ -8,6 +8,7 @@ We implement two cluster based linear complexity outlier detection algorithms in
 ## Files:
 
 data.txt contains 2D points with some ooutliers
+
 dataOoutliers.txt contains 2D points with some ooutliers (more diffcult case from data.txt)
 
 
