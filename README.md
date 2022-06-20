@@ -5,13 +5,16 @@ We implement two cluster based linear complexity outlier detection algorithms in
 1) kMeansOutlier.scala : First implmentation.
 2) kMeansOutlier2.scala : a better solution implmentation, takes into account micro-cluster outliers.
 
-# Files:
+## Files:
 
 data.txt contains 2D points with some ooutliers
 dataOoutliers.txt contains 2D points with some ooutliers (more diffcult case from data.txt)
 
 
-# Results: 
+## Results: 
+
+Circle dots refer to detected outliers.
+Red dots are sample data (to visualise the sample step in better solution implmentation)
 
 First implmentation in data.txt:
 
