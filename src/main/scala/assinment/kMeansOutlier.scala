@@ -78,38 +78,8 @@ object kMeansOutlier {
 
     val predictions=model.transform(scaledData)
     val duration1 = (System.nanoTime - t1) / 1e9d
-    print(s"Time kmean :   $duration1 \n")
+    //print(s"Time kmean :   $duration1 \n")
 
-
-    /**
-     * We calculate the distances from center to all points of the cluster.
-     * As a threshold we use the mean distance plus the standard deviation of those distances multiplied by a factor.
-     * If the distance of a point from its center is greaters than the threshold, then it is outlier.
-     * @param cluster DataFrame of specfic Cluster
-     * @param center center of the cluster.
-     * @return threshold for outlier detection.
-     */
-    def CalculateThreshodl(cluster: DataFrame,center :Vector): Double= {
-      val clusterrdd=cluster.rdd
-      val distances=clusterrdd.map({case(x) =>Vectors.sqdist(x.apply(0).asInstanceOf[Vector],center)})
-      distances.mean()+distances.stdev()*factor
-    }
-
-    /**
-     * We assume that a point is considered as an outlier if its distance from its center is greater than (or equal) th.
-     * @param v Potential Outlier (data point)
-     * @param th Threshold Distance
-     * @param center Center of Cluster.
-     * @return True if v is an outlier.Otherwise, false.
-     */
-    def findOutlier(v: Vector , th : Double,center:Vector): Boolean ={
-
-      if ( Vectors.sqdist(v,center)>th){
-        true
-      } else{
-        false
-      }
-    }
     /**
      * Prints the unscaled points considered as outliers(unscaling).
      * Formula: x=xscaled*(max(X)-min(X)) +min(X) , y=yscaled*(max(Y)-min(Y)) +min(Y)
@@ -126,21 +96,7 @@ object kMeansOutlier {
     }
 
 
-    /**
-     * Finds the outliers of the cluster with label i.
-     * @param frame DataFrame of all clusters
-     * @param i Integer represanting the label of the cluster
-     */
-    def outlierDetection(frame: DataFrame, i: Int):Unit={
-      // clusterr is the cluster with label i
-      val clusterr=predictions.filter(predictions.col("prediction").equalTo(i)).select("features")
-      val center=model.clusterCenters(i)
 
-      //For every point of the cluster check if its an outlier, calling the findOutlier function
-      // As a threshold we use the mean value of distances plus the standard deviation of them multiplied by a factor
-      val th=CalculateThreshodl(clusterr,center)
-      clusterr.foreach(row => if (  findOutlier( row.apply(0).asInstanceOf[Vector],th,center)) unScale(xscale,yscale,row))
-    }
 
     //predictions.groupBy("prediction").agg()
     //Find outliers for all clusters
